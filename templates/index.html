@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>URL Checker</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    input[type="text"] { width: min(720px, 100%); padding: 10px 12px; }
+    button { padding: 10px 12px; cursor: pointer; }
+    pre { background: #f6f8fa; padding: 12px; overflow: auto; }
+    .ok { color: #0a7a2f; }
+    .blocked { color: #b42318; }
+    .muted { color: #667085; }
+  </style>
+</head>
+<body>
+  <h1>Проверьте URL</h1>
+
+  <div class="row">
+    <input type="text" id="urlInput" placeholder="Введите URL (например, https://example.com)" />
+    <button id="checkBtn" type="button">Проверить</button>
+  </div>
+
+  <p id="result" class="muted">Введите адрес и нажмите “Проверить”.</p>
+
+  <details id="detailsWrap" style="display:none;">
+    <summary>Детальный отчёт</summary>
+    <pre id="report"></pre>
+  </details>
+
+  <script>
+    const urlInput = document.getElementById('urlInput');
+    const checkBtn = document.getElementById('checkBtn');
+    const resultEl = document.getElementById('result');
+    const reportEl = document.getElementById('report');
+    const detailsWrap = document.getElementById('detailsWrap');
+
+    function setResult(text, cls) {
+      resultEl.className = cls || "";
+      resultEl.textContent = text;
+    }
+
+    async function checkURL() {
+      const url = (urlInput.value || "").trim();
+      if (!url) {
+        setResult("Введите URL.", "muted");
+        detailsWrap.style.display = "none";
+        return;
+      }
+
+      setResult("Проверяем…", "muted");
+      detailsWrap.style.display = "none";
+      reportEl.textContent = "";
+
+      try {
+        const response = await fetch("/check", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url })
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          const msg = data?.detail || `Ошибка запроса (${response.status})`;
+          setResult(msg, "blocked");
+          return;
+        }
+
+        // Совместимость: backend может вернуть {status:"ok|blocked", report:{...}}
+        const status = data?.status ?? "unknown";
+        const report = data?.report ?? data;
+
+        if (status === "ok") setResult("Статус: ok (SAFE)", "ok");
+        else if (status === "blocked") setResult("Статус: blocked (UNSAFE)", "blocked");
+        else setResult(`Статус: ${status}`, "muted");
+
+        detailsWrap.style.display = "block";
+
+// Собираем только существующие проблемы
+const problems = [];
+
+// 1) Общие issues (если backend их заполнил)
+if (Array.isArray(report?.issues)) {
+  for (const it of report.issues) {
+    if (typeof it === "string" && it.trim()) problems.push(it.trim());
+  }
+}
+
+// 2) Фолбэк: пройдём по модулям и возьмём только небезопасные/с нарушениями
+if (Array.isArray(report?.modules)) {
+  for (const m of report.modules) {
+    const moduleName = m?.module || "module";
+    const details = (m?.details || "").trim();
+
+    // Считаем проблемой:
+    // - safe === false
+    // - или violations > 0
+    // - или (для VT) raw_violations > 0
+    const hasProblem =
+      m?.safe === false ||
+      (typeof m?.violations === "number" && m.violations > 0) ||
+      (typeof m?.raw_violations === "number" && m.raw_violations > 0);
+
+    if (!hasProblem) continue;
+
+    // Не считаем проблемой отсутствие VT ключа (это "нет данных", а не "плохо")
+    if (moduleName === "virustotal" && details.includes("VT_API_KEY")) continue;
+
+    // Не выводим "OK"
+    if (!details || details === "OK") continue;
+
+    problems.push(`${moduleName}: ${details}`);
+  }
+}
+
+// Удалим дубли (если issues и modules дали одно и то же)
+const uniq = [...new Set(problems)];
+
+if (uniq.length === 0) {
+  reportEl.textContent = "Проблем не обнаружено.";
+} else {
+  reportEl.textContent = uniq.map((x) => `- ${x}`).join("\n");
+}
+
+      } catch (e) {
+        setResult("Сеть недоступна или сервер не отвечает.", "blocked");
+      }
+    }
+
+    checkBtn.addEventListener("click", checkURL);
+    urlInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") checkURL();
+    });
+  </script>
+</body>
+</html>
