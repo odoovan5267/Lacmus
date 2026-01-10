@@ -276,11 +276,15 @@ def index():
 def check():
     """Обработка проверки URL"""
     if request.method == 'POST':
-        url = request.form.get('url', '').strip()
+        # Получаем данные из JSON запроса (а не из формы)
+        if request.is_json:
+            data = request.get_json()
+            url = data.get('url', '').strip() if data else ''
+        else:
+            url = request.form.get('url', '').strip()
         
         if not url:
-            flash('Пожалуйста, введите URL для проверки', 'error')
-            return redirect(url_for('index'))
+            return jsonify({"error": "URL is required"}), 400
         
         try:
             # Добавляем протокол если его нет
@@ -290,18 +294,26 @@ def check():
             # Проверяем URL
             result = comprehensive_website_check(url)
             
-            # Сохраняем в сессии для отображения
-            request.session['last_result'] = result
+            # Конвертируем статус в формат, ожидаемый фронтендом
+            status_mapping = {
+                "SAFE": "ok",
+                "WARNING": "unknown",
+                "DANGEROUS": "blocked"
+            }
             
-            return render_template('result.html', result=result)
+            # Формируем ответ в формате, ожидаемом фронтендом
+            response = {
+                "status": status_mapping.get(result.get("status", "unknown"), "unknown"),
+                "report": result  # Отправляем полный отчет
+            }
+            
+            return jsonify(response)
             
         except Exception as e:
-            flash(f'Ошибка при проверке URL: {str(e)}', 'error')
-            return redirect(url_for('index'))
+            return jsonify({"error": str(e), "status": "unknown"}), 500
     
-    # GET запрос - показать форму
+    # Для GET запросов - редирект на главную
     return redirect(url_for('index'))
-
 @app.route('/api/check')
 def api_check():
     """API endpoint для проверки URL"""
