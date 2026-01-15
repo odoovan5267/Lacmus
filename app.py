@@ -31,6 +31,7 @@ WHITELISTED_DOMAINS = {
     "stackoverflow.com",
     "google.com",
     "ptsecurity.com",
+    "https://lacmus.onrender.com/",
 }
 
 SUSPICIOUS_SUBSTRINGS = [
@@ -433,7 +434,7 @@ def comprehensive_website_check(url: str) -> dict:
         "url": url,
         "status": overall_status,
         "status_color": status_color,
-        "security_score": max(0, min(100, security_score)),
+        "security_score": security_score,
         "issues": overall_issues,
         "modules": results,
         "checked_at": start_time.strftime("%Y-%m-%d %H:%M:%S"),
