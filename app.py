@@ -434,7 +434,7 @@ def comprehensive_website_check(url: str) -> dict:
         "url": url,
         "status": overall_status,
         "status_color": status_color,
-        "security_score": security_score,
+        "security_score": max(0, min(1000, security_score)),
         "issues": overall_issues,
         "modules": results,
         "checked_at": start_time.strftime("%Y-%m-%d %H:%M:%S"),
