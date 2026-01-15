@@ -73,8 +73,8 @@
         const status = data?.status ?? "unknown";
         const report = data?.report ?? data;
 
-        if (status === "ok") setResult("Статус: Безопасно (SAFE)", "ok");
-        else if (status === "blocked") setResult("Статус: Опасно (UNSAFE)", "blocked");
+        if (status === "ok") setResult("Статус: Безопасно (SAFE)", "Безопасно");
+        else if (status === "blocked") setResult("Статус: Опасно (UNSAFE)", "Опасно");
         else setResult(`Статус: ${status}`, "muted");
 
         detailsWrap.style.display = "block";
